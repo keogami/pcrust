@@ -45,22 +45,6 @@ fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> any
         .collect();
 
     Ok(())
-    // let err = loop {
-    //     let packet = match capture.next_packet() {
-    //         Ok(p) => p,
-    //         Err(err) => break err,
-    //     };
-
-    //     let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
-    //         .context("Couldn't parse ip packet.")?;
-
-    //     hexdump::hexdump(packet_header.payload);
-    // };
-
-    // match err {
-    //     pcap::Error::NoMorePackets => Ok(()),
-    //     _ => Err(err).context("Couldn't get the next ip packet"),
-    // }
 }
 
 fn scan_capture<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> anyhow::Result<()> {
