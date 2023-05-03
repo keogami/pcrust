@@ -30,6 +30,13 @@ enum PcrustCommand {
     },
 }
 
+fn scan_ntlm(payload: &[u8]) -> bool {
+    use regex::bytes::Regex;
+    let re = Regex::new(r"(?-u)NTLMSSP\x00\x02\x00\x00\x00").unwrap();
+
+    re.is_match(payload)
+}
+
 fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> anyhow::Result<()> {
     let _results: Vec<anyhow::Result<()>> = capture
         .iter(Codec::new())
@@ -38,7 +45,7 @@ fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> any
             let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
                 .context("Couldn't parse ip packet.")?;
 
-            hexdump::hexdump(packet_header.payload);
+            println!("Has ntlmsspv2 hash? {}", scan_ntlm(packet_header.payload));
 
             Ok(())
         })
