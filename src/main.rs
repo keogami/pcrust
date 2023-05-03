@@ -1,6 +1,9 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 
+mod codec;
+use codec::Codec;
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -27,25 +30,37 @@ enum PcrustCommand {
     },
 }
 
-fn parse_tcp_dump<T: pcap::Activated + ?Sized>(
-    mut capture: pcap::Capture<T>,
-) -> anyhow::Result<()> {
-    let err = loop {
-        let packet = match capture.next_packet() {
-            Ok(p) => p,
-            Err(err) => break err,
-        };
+fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> anyhow::Result<()> {
+    let _results: Vec<anyhow::Result<()>> = capture
+        .iter(Codec::new())
+        .map(|packet| {
+            let packet = packet?;
+            let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
+                .context("Couldn't parse ip packet.")?;
 
-        let packetheader = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
-            .context("Couldn't parse ip packet.")?;
+            hexdump::hexdump(packet_header.payload);
 
-        println!("{:?}", packetheader.ip.unwrap());
-    };
+            Ok(())
+        })
+        .collect();
 
-    match err {
-        pcap::Error::NoMorePackets => Ok(()),
-        _ => Err(err).context("Couldn't get the next ip packet"),
-    }
+    Ok(())
+    // let err = loop {
+    //     let packet = match capture.next_packet() {
+    //         Ok(p) => p,
+    //         Err(err) => break err,
+    //     };
+
+    //     let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
+    //         .context("Couldn't parse ip packet.")?;
+
+    //     hexdump::hexdump(packet_header.payload);
+    // };
+
+    // match err {
+    //     pcap::Error::NoMorePackets => Ok(()),
+    //     _ => Err(err).context("Couldn't get the next ip packet"),
+    // }
 }
 
 fn scan_capture<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> anyhow::Result<()> {
