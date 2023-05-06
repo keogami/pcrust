@@ -18,18 +18,13 @@ impl ScanState {
     }
 }
 
-fn parse_ntlm(packet: &[u8], challenge: &[u8]) -> String {
-    format!(
-        "{}:{}",
-        challenge
-            .iter()
-            .map(|i| format!("{i:02X}"))
-            .fold("".to_owned(), |a, b| a + &b),
-        packet
-            .iter()
-            .map(|i| format!("{i:02X}"))
-            .fold("".to_owned(), |a, b| a + &b)
-    )
+fn parse_ntlm(packet: &[u8], challenge: &[u8]) -> anyhow::Result<String> {
+    let challenge_str = challenge
+        .iter()
+        .map(|i| format!("{i:02X}"))
+        .fold("".to_owned(), |a, b| a + &b);
+
+    Ok(challenge_str)
 }
 
 fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> anyhow::Result<Option<ScannedType>> {
@@ -43,11 +38,17 @@ fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> anyhow::Result<Option<Sca
             .map(|m| Vec::from(&payload[m.start() + 24..m.start() + 32]));
         Ok(None)
     } else {
-        Ok(ntlmssp3.find(payload).map(|m| {
-            ScannedType::NTLMv1(parse_ntlm(
-                &payload[m.start()..m.end()],
-                &state.partial_ntlm.take().unwrap(),
-            ))
-        }))
+        Ok(match ntlmssp3.find(payload) {
+            Some(m) => {
+                let res = parse_ntlm(
+                    &payload[m.start()..m.end()],
+                    &state.partial_ntlm.as_ref().unwrap(),
+                )?;
+                state.partial_ntlm = None;
+
+                Some(ScannedType::NTLMv1(res))
+            }
+            None => None,
+        })
     }
 }
