@@ -8,6 +8,19 @@ pub struct ScanState {
     partial_ntlm: Option<Vec<u8>>,
 }
 
+impl ScanState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn scan(&mut self, payload: &[u8]) -> Vec<ScannedType> {
+        [scan_ntlm]
+            .iter()
+            .filter_map(|f| f(self, payload))
+            .collect()
+    }
+}
+
 fn parse_ntlm(packet: &[u8], challenge: &[u8]) -> String {
     format!(
         "{}:{}",
@@ -40,11 +53,4 @@ fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> Option<ScannedType> {
             ))
         })
     }
-}
-
-pub fn scan(state: &mut ScanState, payload: &[u8]) -> Vec<ScannedType> {
-    [scan_ntlm]
-        .iter()
-        .filter_map(|f| f(state, payload))
-        .collect()
 }

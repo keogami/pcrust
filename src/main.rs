@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 
@@ -34,47 +32,22 @@ enum PcrustCommand {
     },
 }
 
-fn scan_ntlm2(payload: &[u8]) -> Option<Range<usize>> {
-    use regex::bytes::Regex;
-    let re = Regex::new(r"(?-u)NTLMSSP\x00\x02\x00\x00\x00.*[^EOF]*").unwrap();
-
-    re.find(payload).map(|m| (m.start()..m.end()))
-}
-
-fn scan_ntlm3(payload: &[u8]) -> Option<Range<usize>> {
-    use regex::bytes::Regex;
-    let re = Regex::new(r"(?-u)NTLMSSP\x00\x03\x00\x00\x00.*[^EOF]*").unwrap();
-
-    re.find(payload).map(|m| (m.start()..m.end()))
-}
-
 fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> anyhow::Result<()> {
-    let mut state = scanner::ScanState::default();
-    let _results: Vec<anyhow::Result<()>> = capture
+    let mut state = scanner::ScanState::new();
+    capture
         .iter(Codec::new())
-        .enumerate()
-        .map(|(id, packet)| {
+        .map(|packet| {
             let packet = packet?;
             let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
                 .context("Couldn't parse ip packet.")?;
 
-            println!(
-                "[{id}] Has ntlmsspv2 hash? {:?}",
-                scan_ntlm2(packet_header.payload)
-            );
-            println!(
-                "[{id}] Has ntlmsspv3 hash? {:?}",
-                scan_ntlm3(packet_header.payload)
-            );
-
-            println!(
-                "[{id}] with scanner: {:?}",
-                scanner::scan(&mut state, packet_header.payload)
-            );
-
-            Ok(())
+            Ok(state.scan(packet_header.payload))
         })
-        .collect();
+        // ignoring the errors for now
+        // FIXME add proper error handling by introducing --verbose flag and outputting warning on the stderr
+        .filter_map(|scanned: anyhow::Result<_>| scanned.ok())
+        .filter(|scanned| scanned.len() != 0)
+        .for_each(|scanned| println!("{scanned:#?}"));
 
     Ok(())
 }
