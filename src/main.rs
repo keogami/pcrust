@@ -43,9 +43,13 @@ fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> any
 
             Ok(state.scan(packet_header.payload))
         })
-        // ignoring the errors for now
-        // FIXME add proper error handling by introducing --verbose flag and outputting warning on the stderr
-        .filter_map(|scanned: anyhow::Result<_>| scanned.ok())
+        .filter_map(|result: anyhow::Result<_>| match result {
+            Ok(scanned) => Some(scanned),
+            Err(err) => {
+                tracing::warn!(warning = %err);
+                None
+            }
+        })
         .filter(|scanned| scanned.len() != 0)
         .for_each(|scanned| println!("{scanned:#?}"));
 
@@ -77,6 +81,12 @@ fn parse_file(path: std::path::PathBuf) -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
+
+    let log_subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_max_level(tracing::Level::INFO)
+        .finish();
+
+    tracing::subscriber::set_global_default(log_subscriber).context("Couldn't setup logging")?;
 
     match args.command {
         PcrustCommand::File { path } => parse_file(path).context("Couldn't parse file.")?,
