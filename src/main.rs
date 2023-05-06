@@ -41,7 +41,18 @@ fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> any
             let packet_header = etherparse::PacketHeaders::from_ip_slice(&packet.data[14..])
                 .context("Couldn't parse ip packet.")?;
 
-            Ok(state.scan(packet_header.payload))
+            Ok(state
+                .scan(packet_header.payload)
+                .into_iter()
+                .filter_map(|result| match result {
+                    Ok(scanned) => Some(scanned),
+                    Err(err) => {
+                        tracing::warn!(warning = %err);
+                        None
+                    }
+                })
+                .filter_map(|scanned| scanned)
+                .collect::<Vec<_>>())
         })
         .filter_map(|result: anyhow::Result<_>| match result {
             Ok(scanned) => Some(scanned),

@@ -13,11 +13,8 @@ impl ScanState {
         Self::default()
     }
 
-    pub fn scan(&mut self, payload: &[u8]) -> Vec<ScannedType> {
-        [scan_ntlm]
-            .iter()
-            .filter_map(|f| f(self, payload))
-            .collect()
+    pub fn scan(&mut self, payload: &[u8]) -> Vec<anyhow::Result<Option<ScannedType>>> {
+        [scan_ntlm].iter().map(|f| f(self, payload)).collect()
     }
 }
 
@@ -35,7 +32,7 @@ fn parse_ntlm(packet: &[u8], challenge: &[u8]) -> String {
     )
 }
 
-fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> Option<ScannedType> {
+fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> anyhow::Result<Option<ScannedType>> {
     use regex::bytes::Regex;
     let ntlmssp2 = Regex::new(r"(?-u)NTLMSSP\x00\x02\x00\x00\x00.*[^EOF]*").unwrap();
     let ntlmssp3 = Regex::new(r"(?-u)NTLMSSP\x00\x03\x00\x00\x00.*[^EOF]*").unwrap();
@@ -44,13 +41,13 @@ fn scan_ntlm(state: &mut ScanState, payload: &[u8]) -> Option<ScannedType> {
         state.partial_ntlm = ntlmssp2
             .find(payload)
             .map(|m| Vec::from(&payload[m.start() + 24..m.start() + 32]));
-        None
+        Ok(None)
     } else {
-        ntlmssp3.find(payload).map(|m| {
+        Ok(ntlmssp3.find(payload).map(|m| {
             ScannedType::NTLMv1(parse_ntlm(
                 &payload[m.start()..m.end()],
                 &state.partial_ntlm.take().unwrap(),
             ))
-        })
+        }))
     }
 }
