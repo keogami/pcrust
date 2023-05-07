@@ -62,7 +62,8 @@ fn parse_tcp_dump<T: pcap::Activated + ?Sized>(capture: pcap::Capture<T>) -> any
             }
         })
         .filter(|scanned| scanned.len() != 0)
-        .for_each(|scanned| println!("{scanned:#?}"));
+        .flatten()
+        .for_each(|scanned| println!("{scanned}\n"));
 
     Ok(())
 }
@@ -94,7 +95,7 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
     let log_subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::WARN)
         .finish();
 
     tracing::subscriber::set_global_default(log_subscriber).context("Couldn't setup logging")?;
